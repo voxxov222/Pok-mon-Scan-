@@ -1,0 +1,10 @@
+{
+  "name": "PokeScan AI",
+  "description": "AI Pokemon card scanner, price tracker, and collection portfolio using Gemini Vision and Firebase.",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

@@ -1,0 +1,121 @@
+@import "tailwindcss";
+
+@theme {
+  --color-background: #0a0a0f;
+  --color-foreground: #f8fafc;
+  --color-primary: #FFCB05; /* Electric Yellow */
+  --color-primary-hover: #e5b600;
+  --color-pokeball-red: #EE1515;
+  --color-card: #12121a;
+  --color-card-foreground: #f8fafc;
+  --color-border: rgba(255, 255, 255, 0.12);
+  --color-success: #10b981;
+  --color-destructive: #ef4444;
+  --color-surface: #12121a;
+  --color-surface-hover: #1c1c28;
+
+  /* Energy types */
+  --color-energy-fire: #ff6b35;
+  --color-energy-water: #00b4d8;
+  --color-energy-grass: #38b000;
+  --color-energy-lightning: #ffd60a;
+  --color-energy-psychic: #e0aaff;
+  --color-energy-fighting: #d68c45;
+  --color-energy-darkness: #5c677d;
+  --color-energy-metal: #8d99ae;
+  --color-energy-dragon: #f72585;
+  --color-energy-colorless: #e2e8f0;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* Holographic Foil Shimmer Effect */
+@keyframes holoShimmer {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.holo-card-effect {
+  position: relative;
+  overflow: hidden;
+}
+
+.holo-card-effect::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  padding: 2px;
+  background: linear-gradient(
+    115deg,
+    transparent,
+    rgba(255, 203, 5, 0.4),
+    rgba(238, 21, 21, 0.4),
+    rgba(0, 180, 216, 0.4),
+    rgba(224, 170, 255, 0.4),
+    transparent
+  );
+  background-size: 300% 300%;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.holo-card-effect:hover::before {
+  opacity: 1;
+  animation: holoShimmer 4s ease infinite;
+}
+
+/* Foil Shimmer Overlay for Holo / Rare cards */
+.foil-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.15) 30%,
+    rgba(255, 203, 5, 0.25) 50%,
+    rgba(238, 21, 21, 0.15) 70%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  background-size: 200% 200%;
+  animation: holoShimmer 6s linear infinite;
+  pointer-events: none;
+  mix-blend-mode: overlay;
+  border-radius: inherit;
+}
+
+/* Scanning Line Animation */
+@keyframes scanLine {
+  0% {
+    top: 0%;
+    opacity: 0.8;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    top: 100%;
+    opacity: 0.8;
+  }
+}
+
+.scan-line-anim {
+  animation: scanLine 2.2s ease-in-out infinite alternate;
+}
