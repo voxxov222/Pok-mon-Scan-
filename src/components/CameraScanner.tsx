@@ -1,13 +1,14 @@
 import React, { useRef, useState, useCallback, useEffect } from 'react';
-import { Camera, X, RefreshCw, Sparkles, CheckCircle2, ShieldCheck, Zap } from 'lucide-react';
+import { Camera, X, RefreshCw, Sparkles, CheckCircle2, ShieldCheck, Zap, Minimize2, Maximize2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface ScannerProps {
   onScanComplete: (result: any) => void;
+  onScanStart?: (imageBase64: string) => void;
   onCancel: () => void;
 }
 
-export function CameraScanner({ onScanComplete, onCancel }: ScannerProps) {
+export function CameraScanner({ onScanComplete, onScanStart, onCancel }: ScannerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
@@ -15,6 +16,7 @@ export function CameraScanner({ onScanComplete, onCancel }: ScannerProps) {
   const [isScanning, setIsScanning] = useState(false);
   const [scanStep, setScanStep] = useState('Capturing frame...');
   const [imageCaptured, setImageCaptured] = useState<string | null>(null);
+  const [isMinimized, setIsMinimized] = useState(false);
 
   const startCamera = useCallback(async () => {
     try {
@@ -65,6 +67,13 @@ export function CameraScanner({ onScanComplete, onCancel }: ScannerProps) {
 
   const analyzeImage = async () => {
     if (!imageCaptured) return;
+    
+    // If onScanStart is provided, hand off to parent immediately
+    if (onScanStart) {
+      onScanStart(imageCaptured);
+      return;
+    }
+
     setIsScanning(true);
     setScanStep('Identifying card name, set & rarity...');
 
@@ -97,6 +106,64 @@ export function CameraScanner({ onScanComplete, onCancel }: ScannerProps) {
     }
   };
 
+  if (isMinimized) {
+    return (
+      <motion.div 
+        drag 
+        dragConstraints={{ left: 0, right: window.innerWidth - 150, top: 0, bottom: window.innerHeight - 200 }}
+        dragMomentum={false}
+        className="fixed z-50 top-20 right-4 w-36 h-48 bg-black rounded-2xl overflow-hidden shadow-2xl border-2 border-primary/50 flex flex-col cursor-move"
+      >
+        <div className="absolute top-0 inset-x-0 p-2 flex justify-between z-10 bg-gradient-to-b from-black/80 to-transparent pointer-events-none">
+           <button 
+             onClick={() => setIsMinimized(false)} 
+             className="pointer-events-auto p-1 bg-black/50 rounded hover:text-primary transition-colors text-white"
+             title="Maximize"
+           >
+             <Maximize2 className="w-4 h-4" />
+           </button>
+           <button 
+             onClick={onCancel} 
+             className="pointer-events-auto p-1 bg-black/50 rounded hover:text-red-400 transition-colors text-white"
+             title="Close"
+           >
+             <X className="w-4 h-4" />
+           </button>
+        </div>
+        <div className="flex-1 relative bg-black flex items-center justify-center">
+          {!imageCaptured && (
+            <video 
+              ref={videoRef} 
+              autoPlay 
+              playsInline 
+              className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+            />
+          )}
+          {imageCaptured && (
+            <img 
+              src={imageCaptured} 
+              alt="Captured" 
+              className="absolute inset-0 w-full h-full object-cover pointer-events-none" 
+            />
+          )}
+          <div className="absolute inset-0 border-2 border-dashed border-primary/50 m-2 rounded-xl pointer-events-none" />
+        </div>
+        <div className="p-2 bg-[#12121a] flex justify-center">
+          {!imageCaptured ? (
+            <button onClick={captureImage} className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-black hover:scale-105 active:scale-95 transition-transform pointer-events-auto">
+              <Camera className="w-4 h-4" />
+            </button>
+          ) : (
+             <div className="flex gap-1 w-full pointer-events-auto">
+               <button onClick={retakeImage} className="flex-1 py-1 bg-white/10 rounded text-[10px] font-bold text-white hover:bg-white/20">↻</button>
+               <button onClick={analyzeImage} className="flex-1 py-1 bg-primary rounded text-[10px] font-bold text-black hover:bg-primary-hover"><Sparkles className="w-3 h-3 mx-auto" /></button>
+             </div>
+          )}
+        </div>
+      </motion.div>
+    );
+  }
+
   return (
     <div className="fixed inset-0 z-50 bg-[#0a0a0f] text-white flex flex-col">
       {/* Top Header */}
@@ -111,9 +178,14 @@ export function CameraScanner({ onScanComplete, onCancel }: ScannerProps) {
           </div>
         </div>
 
-        <button onClick={onCancel} className="p-2 rounded-full hover:bg-white/10 text-white/70 hover:text-white transition-colors">
-          <X className="w-6 h-6" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setIsMinimized(true)} className="p-2 rounded-full hover:bg-white/10 text-white/70 hover:text-white transition-colors">
+            <Minimize2 className="w-5 h-5" />
+          </button>
+          <button onClick={onCancel} className="p-2 rounded-full hover:bg-white/10 text-white/70 hover:text-white transition-colors">
+            <X className="w-6 h-6" />
+          </button>
+        </div>
       </div>
 
       {/* Main Viewfinder Canvas */}

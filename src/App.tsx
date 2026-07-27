@@ -15,6 +15,8 @@ import { TradeMarketplace } from './components/Community/TradeMarketplace';
 import { CommunityForum } from './components/Community/CommunityForum';
 import { PriceAlertsModal } from './components/PriceAlertsModal';
 import { BiometricAuthModal } from './components/BiometricAuthModal';
+import { ZipUpgradeModal } from './components/ZipUpgradeModal';
+import { FileArchive } from 'lucide-react';
 import { CardData, EnergyType } from './types';
 
 function LoginScreen() {
@@ -126,22 +128,59 @@ function PortfolioChart({ cards }: { cards: CardData[] }) {
 }
 
 export default function App() {
-  const { user, loading, cards, addCard, removeCard, toggleTradeStatus } = useCards();
+  const { user, loading, cards, addCard, removeCard, toggleTradeStatus, importCards } = useCards();
   const { alerts, unreadCount, requestNotificationPermission, markAllAsRead } = usePriceAlerts(cards);
 
   const [activeTab, setActiveTab] = useState<'collection' | 'trades' | 'forum'>('collection');
   const [showScanner, setShowScanner] = useState(false);
   const [showAlertsModal, setShowAlertsModal] = useState(false);
   const [showBiometricModal, setShowBiometricModal] = useState(false);
+  const [showZipModal, setShowZipModal] = useState(false);
   const [selectedCardForDetail, setSelectedCardForDetail] = useState<CardData | null>(null);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedEnergyFilter, setSelectedEnergyFilter] = useState<string>('ALL');
 
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analyzeStep, setAnalyzeStep] = useState('');
+
+  const handleScanStart = async (imageBase64: string) => {
+    setShowScanner(false);
+    setIsAnalyzing(true);
+    setAnalyzeStep('Identifying card name, set & rarity...');
+
+    setTimeout(() => {
+      setAnalyzeStep('Assessing centering, edges, surface & corners...');
+    }, 2000);
+
+    setTimeout(() => {
+      setAnalyzeStep('Researching live prices across TCGPlayer, PriceCharting & eBay...');
+    }, 4500);
+
+    try {
+      const response = await fetch('/api/scan-card', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64 })
+      });
+      
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to scan card");
+      }
+      
+      await addCard(data);
+    } catch (err: any) {
+      alert(err.message || "An error occurred during Gemini AI analysis.");
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
   const filteredCards = useMemo(() => {
     return cards.filter(card => {
-      const matchesSearch = card.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                            card.set.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = (card.name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            (card.set || "").toLowerCase().includes(searchTerm.toLowerCase());
       const matchesEnergy = selectedEnergyFilter === 'ALL' || card.energyType === selectedEnergyFilter;
       return matchesSearch && matchesEnergy;
     });
@@ -196,6 +235,23 @@ export default function App() {
 
         {/* User & Actions */}
         <div className="flex items-center gap-2 sm:gap-3">
+          <button 
+            onClick={() => setShowScanner(true)}
+            className="p-2 text-primary hover:bg-white/10 rounded-full transition-colors flex items-center justify-center border border-primary/50 bg-primary/10 shadow-lg shadow-primary/20"
+            title="Scan Pokémon Card"
+          >
+            <Camera className="w-5 h-5" />
+          </button>
+
+          <button 
+            onClick={() => setShowZipModal(true)}
+            className="p-2 text-white/70 hover:text-primary transition-colors flex items-center gap-1.5 text-xs font-bold"
+            title="ZIP Upgrade & Backup System"
+          >
+            <FileArchive className="w-5 h-5 text-primary" />
+            <span className="hidden md:inline uppercase text-[10px] tracking-widest text-primary">ZIP System</span>
+          </button>
+
           <button 
             onClick={() => setShowAlertsModal(true)}
             className="p-2 text-white/70 hover:text-primary transition-colors relative"
@@ -293,22 +349,32 @@ export default function App() {
         {activeTab === 'forum' && <CommunityForum />}
       </main>
 
-      {/* Camera Scan Floating Action Button */}
-      <div className="fixed bottom-6 right-6 z-20">
-        <button 
-          onClick={() => setShowScanner(true)}
-          className="w-16 h-16 bg-primary hover:bg-primary-hover text-black rounded-full flex items-center justify-center shadow-2xl shadow-primary/30 transition-transform hover:scale-105 active:scale-95 border-2 border-yellow-300"
-          title="Scan Pokémon Card"
-        >
-          <Camera className="w-7 h-7" />
-        </button>
-      </div>
+      {/* Analyzing Overlay State */}
+      <AnimatePresence>
+        {isAnalyzing && (
+          <motion.div 
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-[#12121a]/90 backdrop-blur-md border border-primary/50 shadow-[0_0_30px_rgba(255,203,5,0.2)] rounded-2xl p-4 flex items-center gap-4 z-50 w-[90%] max-w-sm"
+          >
+            <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center text-primary flex-shrink-0">
+              <Camera className="w-5 h-5 animate-pulse" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="text-sm font-black text-white tracking-tight">AI Processing</h3>
+              <p className="text-[10px] text-primary font-mono mt-0.5 font-bold truncate">{analyzeStep}</p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Modals */}
       <AnimatePresence>
         {showScanner && (
           <CameraScanner 
             onCancel={() => setShowScanner(false)}
+            onScanStart={handleScanStart}
             onScanComplete={async (result) => {
               await addCard(result);
               setShowScanner(false);
@@ -343,6 +409,16 @@ export default function App() {
           <BiometricAuthModal 
             onUnlocked={() => setShowBiometricModal(false)}
             onClose={() => setShowBiometricModal(false)}
+          />
+        )}
+
+        {showZipModal && (
+          <ZipUpgradeModal 
+            cards={cards}
+            onImportCards={async (imported) => {
+              await importCards(imported);
+            }}
+            onClose={() => setShowZipModal(false)}
           />
         )}
       </AnimatePresence>

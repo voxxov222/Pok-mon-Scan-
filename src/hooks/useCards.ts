@@ -68,5 +68,17 @@ export function useCards() {
     });
   };
 
-  return { cards, loading, user, addCard, removeCard, toggleTradeStatus };
+  const importCards = async (importedCards: Omit<CardData, 'id' | 'userId' | 'dateScanned'>[]) => {
+    if (!user) throw new Error("Must be logged in to import cards");
+    
+    for (const card of importedCards) {
+      await addDoc(collection(db, 'cards'), {
+        ...card,
+        userId: user.uid,
+        dateScanned: Date.now()
+      });
+    }
+  };
+
+  return { cards, loading, user, addCard, removeCard, toggleTradeStatus, importCards };
 }

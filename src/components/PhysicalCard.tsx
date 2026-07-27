@@ -22,14 +22,23 @@ const energyColors: Record<EnergyType, { bg: string; text: string; border: strin
   Colorless: { bg: 'bg-[var(--color-energy-colorless)]/20', text: 'text-[var(--color-energy-colorless)]', border: 'border-[var(--color-energy-colorless)]/40' }
 };
 
+const getGradeColor = (grade: number) => {
+  if (grade >= 9.5) return { stroke: 'stroke-amber-400', fill: 'text-amber-400', bg: 'text-amber-400/20' }; // Gold
+  if (grade >= 8.0) return { stroke: 'stroke-gray-300', fill: 'text-gray-300', bg: 'text-gray-300/20' };   // Silver
+  if (grade >= 6.0) return { stroke: 'stroke-orange-500', fill: 'text-orange-500', bg: 'text-orange-500/20' }; // Bronze
+  return { stroke: 'stroke-red-500', fill: 'text-red-500', bg: 'text-red-500/20' }; // Red
+};
+
 export function PhysicalCard({ card, onClick, showGradeBadge = true }: PhysicalCardProps) {
   const [rotateX, setRotateX] = useState(0);
   const [rotateY, setRotateY] = useState(0);
 
-  const isHolo = card.rarity?.toLowerCase().includes('holo') || 
-                card.rarity?.toLowerCase().includes('secret') || 
-                card.rarity?.toLowerCase().includes('ultra') || 
-                card.rarity?.toLowerCase().includes('rare') || 
+  const isShiny = (card.rarity || "").toLowerCase().includes('shiny') || (card.name || "").toLowerCase().includes('shiny');
+  const isHolo = (card.rarity || "").toLowerCase().includes('holo') || 
+                (card.rarity || "").toLowerCase().includes('secret') || 
+                (card.rarity || "").toLowerCase().includes('ultra') || 
+                (card.rarity || "").toLowerCase().includes('rare') || 
+                isShiny ||
                 (card.estimatedGrade && card.estimatedGrade >= 9);
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -88,12 +97,33 @@ export function PhysicalCard({ card, onClick, showGradeBadge = true }: PhysicalC
           </p>
         </div>
 
-        {/* Grade Score Badge */}
+        {/* Grade Score Badge (Progress Ring) */}
         {showGradeBadge && card.estimatedGrade && (
-          <div className="flex-shrink-0 flex flex-col items-end">
-            <div className="bg-gradient-to-r from-amber-500/20 to-yellow-500/20 border border-amber-500/50 rounded-xl px-2.5 py-1 text-center shadow-md">
-              <span className="text-[8px] uppercase tracking-widest font-black text-amber-400 block leading-tight">AI GRADE</span>
-              <span className="text-sm font-black text-amber-300 font-mono leading-none">{card.estimatedGrade.toFixed(1)}</span>
+          <div className="flex-shrink-0 flex flex-col items-center justify-center relative w-11 h-11 -mt-1 -mr-1 drop-shadow-md">
+            <svg className="w-full h-full -rotate-90 transform" viewBox="0 0 36 36">
+              <circle
+                cx="18"
+                cy="18"
+                r="16"
+                fill="none"
+                className={`${getGradeColor(card.estimatedGrade).bg} stroke-current`}
+                strokeWidth="2.5"
+              />
+              <circle
+                cx="18"
+                cy="18"
+                r="16"
+                fill="none"
+                className={`${getGradeColor(card.estimatedGrade).stroke}`}
+                strokeWidth="2.5"
+                strokeDasharray="100"
+                strokeDashoffset={100 - (card.estimatedGrade / 10) * 100}
+                strokeLinecap="round"
+              />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center pt-0.5">
+               <span className={`text-[6px] uppercase tracking-widest font-black ${getGradeColor(card.estimatedGrade).fill} leading-none mb-0.5`}>AI</span>
+               <span className={`text-xs font-black ${getGradeColor(card.estimatedGrade).fill} font-mono leading-none`}>{card.estimatedGrade.toFixed(1)}</span>
             </div>
           </div>
         )}
@@ -112,8 +142,11 @@ export function PhysicalCard({ card, onClick, showGradeBadge = true }: PhysicalC
         </div>
 
         <div className="flex-1 space-y-1">
-          <div className="text-[10px] text-white/60">
-            <span className="font-bold text-white/80">Rarity:</span> {card.rarity}
+          <div className="mb-1">
+            <span className={`inline-block text-[9px] uppercase font-bold tracking-widest px-2 py-0.5 rounded border ${isShiny ? 'bg-gradient-to-r from-yellow-300 via-pink-400 to-cyan-400 text-black border-transparent shadow-[0_0_10px_rgba(255,203,5,0.5)]' : `${energyStyle.bg} ${energyStyle.text} ${energyStyle.border}`}`}>
+              {isShiny && <Zap className="w-2.5 h-2.5 inline mr-0.5 -mt-0.5 animate-pulse" />}
+              {card.rarity || 'Common'}
+            </span>
           </div>
           {card.condition && (
             <div className="text-[10px] text-white/60">
