@@ -243,7 +243,7 @@ export function CardDetailModal({ card, onClose, onRemove, onToggleTrade }: Card
         </div>
 
         {/* Modal Actions */}
-        <div className="flex justify-between items-center pt-4 border-t border-white/10">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-4 border-t border-white/10">
           <button 
             onClick={() => {
               if (confirm(`Remove ${card.name} from your collection?`)) {
@@ -251,16 +251,30 @@ export function CardDetailModal({ card, onClose, onRemove, onToggleTrade }: Card
                 onClose();
               }
             }}
-            className="text-red-400 hover:text-red-300 text-xs font-bold uppercase tracking-widest flex items-center gap-1.5 p-2 rounded-xl hover:bg-red-500/10 transition-colors"
+            className="flex-1 text-red-400 hover:text-red-300 text-[10px] font-bold uppercase tracking-widest flex items-center justify-center gap-1.5 p-3 rounded-xl bg-red-500/10 hover:bg-red-500/20 transition-colors"
           >
-            <Trash2 className="w-4 h-4" /> Remove Card
+            <Trash2 className="w-3.5 h-3.5" /> Delete Card
+          </button>
+          
+          <button 
+            onClick={() => alert(`Redirecting to Marketplace to list ${card.name} for Sale...`)}
+            className="flex-1 text-emerald-400 hover:text-emerald-300 text-[10px] font-bold uppercase tracking-widest flex items-center justify-center gap-1.5 p-3 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 transition-colors"
+          >
+            <Tag className="w-3.5 h-3.5" /> Sell on Market
+          </button>
+          
+          <button 
+            onClick={() => alert(`Starting Verified Card Authority grading submission for ${card.name}...`)}
+            className="flex-1 sm:col-span-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold px-4 py-3 rounded-xl text-[10px] sm:text-xs uppercase tracking-widest transition-colors flex items-center justify-center gap-2 shadow-lg shadow-blue-900/20"
+          >
+            <Award className="w-4 h-4" /> Send to Get Graded (Verified Card Authority)
           </button>
 
           <button 
             onClick={onClose}
-            className="bg-primary hover:bg-primary-hover text-black font-bold px-6 py-2.5 rounded-xl text-xs uppercase tracking-widest transition-colors"
+            className="flex-1 sm:col-span-2 bg-primary hover:bg-primary-hover text-black font-bold px-4 py-3 rounded-xl text-[10px] sm:text-xs uppercase tracking-widest transition-colors shadow-lg shadow-primary/20"
           >
-            Done
+            Close Dashboard
           </button>
         </div>
       </motion.div>

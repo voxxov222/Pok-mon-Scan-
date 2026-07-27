@@ -144,6 +144,44 @@ export default function App() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analyzeStep, setAnalyzeStep] = useState('');
 
+  const handleBatchScanStart = async (images: string[]) => {
+    setShowScanner(false);
+    if (!images || images.length === 0) return;
+    
+    setIsAnalyzing(true);
+    let successCount = 0;
+    
+    for (let i = 0; i < images.length; i++) {
+      setAnalyzeStep(`Processing card ${i + 1} of ${images.length}...`);
+      
+      try {
+        const response = await fetch('/api/scan-card', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imageBase64: images[i] })
+        });
+        
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || "Failed to scan card");
+        }
+        
+        await addCard(data);
+        successCount++;
+      } catch (err: any) {
+        console.error("Batch scan error on card", i + 1, err);
+        // Continue processing others despite error
+      }
+    }
+    
+    setIsAnalyzing(false);
+    if (successCount > 0) {
+      alert(`Batch scan complete! Added ${successCount} cards to Vault.`);
+    } else {
+      alert("Batch scan failed. No cards could be processed.");
+    }
+  };
+
   const handleScanStart = async (imageBase64: string) => {
     setShowScanner(false);
     setIsAnalyzing(true);
@@ -375,6 +413,7 @@ export default function App() {
           <CameraScanner 
             onCancel={() => setShowScanner(false)}
             onScanStart={handleScanStart}
+            onBatchScanStart={handleBatchScanStart}
             onScanComplete={async (result) => {
               await addCard(result);
               setShowScanner(false);

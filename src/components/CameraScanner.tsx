@@ -5,10 +5,11 @@ import { motion, AnimatePresence } from 'motion/react';
 interface ScannerProps {
   onScanComplete: (result: any) => void;
   onScanStart?: (imageBase64: string) => void;
+  onBatchScanStart?: (images: string[]) => void;
   onCancel: () => void;
 }
 
-export function CameraScanner({ onScanComplete, onScanStart, onCancel }: ScannerProps) {
+export function CameraScanner({ onScanComplete, onScanStart, onBatchScanStart, onCancel }: ScannerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
@@ -17,6 +18,8 @@ export function CameraScanner({ onScanComplete, onScanStart, onCancel }: Scanner
   const [scanStep, setScanStep] = useState('Capturing frame...');
   const [imageCaptured, setImageCaptured] = useState<string | null>(null);
   const [isMinimized, setIsMinimized] = useState(false);
+  const [isBatchMode, setIsBatchMode] = useState(false);
+  const [batchQueue, setBatchQueue] = useState<string[]>([]);
 
   const startCamera = useCallback(async () => {
     try {
@@ -178,7 +181,18 @@ export function CameraScanner({ onScanComplete, onScanStart, onCancel }: Scanner
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          {/* Toggle for Batch Mode */}
+          <div className="hidden sm:flex bg-black/50 p-1 rounded-xl border border-white/10">
+            <button 
+              onClick={() => setIsBatchMode(false)}
+              className={`px-3 py-1 text-[10px] font-bold uppercase tracking-widest rounded-lg transition-colors ${!isBatchMode ? 'bg-primary text-black' : 'text-white/50 hover:text-white'}`}
+            >Single</button>
+            <button 
+              onClick={() => setIsBatchMode(true)}
+              className={`px-3 py-1 text-[10px] font-bold uppercase tracking-widest rounded-lg transition-colors ${isBatchMode ? 'bg-primary text-black' : 'text-white/50 hover:text-white'}`}
+            >Batch</button>
+          </div>
           <button onClick={() => setIsMinimized(true)} className="p-2 rounded-full hover:bg-white/10 text-white/70 hover:text-white transition-colors">
             <Minimize2 className="w-5 h-5" />
           </button>
@@ -271,16 +285,29 @@ export function CameraScanner({ onScanComplete, onScanStart, onCancel }: Scanner
 
       {/* Bottom Controls */}
       {!error && !isScanning && (
-        <div className="p-6 bg-[#12121a] border-t border-white/10 flex justify-center items-center gap-4">
+        <div className="p-6 bg-[#12121a] border-t border-white/10 flex flex-col justify-center items-center gap-4">
           {!imageCaptured ? (
-            <button 
-              onClick={captureImage}
-              className="w-20 h-20 rounded-full border-4 border-primary/40 flex items-center justify-center p-1 hover:scale-105 transition-transform active:scale-95 shadow-xl shadow-primary/20"
-            >
-              <div className="w-full h-full bg-primary rounded-full flex items-center justify-center text-black">
-                <Camera className="w-8 h-8" />
-              </div>
-            </button>
+            <div className="flex flex-col items-center gap-4 w-full">
+              <button 
+                onClick={captureImage}
+                className="w-20 h-20 rounded-full border-4 border-primary/40 flex items-center justify-center p-1 hover:scale-105 transition-transform active:scale-95 shadow-xl shadow-primary/20"
+              >
+                <div className="w-full h-full bg-primary rounded-full flex items-center justify-center text-black">
+                  <Camera className="w-8 h-8" />
+                </div>
+              </button>
+              
+              {isBatchMode && batchQueue.length > 0 && (
+                <button 
+                  onClick={() => {
+                    if (onBatchScanStart) onBatchScanStart(batchQueue);
+                  }}
+                  className="w-full max-w-sm py-3 px-4 rounded-xl bg-primary hover:bg-primary-hover font-bold text-xs uppercase tracking-widest text-black flex items-center justify-center gap-2 transition-colors shadow-lg shadow-primary/20"
+                >
+                  <Sparkles className="w-4 h-4" /> Process Batch ({batchQueue.length} Cards)
+                </button>
+              )}
+            </div>
           ) : (
             <div className="flex w-full max-w-md gap-4">
               <button 
@@ -289,12 +316,26 @@ export function CameraScanner({ onScanComplete, onScanStart, onCancel }: Scanner
               >
                 Retake
               </button>
-              <button 
-                onClick={analyzeImage}
-                className="flex-1 py-3 px-4 rounded-xl bg-primary hover:bg-primary-hover font-bold text-xs uppercase tracking-widest text-black flex items-center justify-center gap-2 transition-colors shadow-lg shadow-primary/20"
-              >
-                <Sparkles className="w-4 h-4" /> Appraise Card
-              </button>
+              
+              {isBatchMode ? (
+                <button 
+                  onClick={() => {
+                    setBatchQueue(prev => [...prev, imageCaptured]);
+                    setImageCaptured(null);
+                    startCamera();
+                  }}
+                  className="flex-1 py-3 px-4 rounded-xl bg-blue-500 hover:bg-blue-400 font-bold text-xs uppercase tracking-widest text-black flex items-center justify-center gap-2 transition-colors shadow-lg shadow-blue-500/20"
+                >
+                  Add to Queue
+                </button>
+              ) : (
+                <button 
+                  onClick={analyzeImage}
+                  className="flex-1 py-3 px-4 rounded-xl bg-primary hover:bg-primary-hover font-bold text-xs uppercase tracking-widest text-black flex items-center justify-center gap-2 transition-colors shadow-lg shadow-primary/20"
+                >
+                  <Sparkles className="w-4 h-4" /> Appraise Card
+                </button>
+              )}
             </div>
           )}
         </div>

@@ -1,0 +1,333 @@
+import { CardItem, MarketplaceListing, LedgerEvent } from '../types';
+
+export const mockCards: CardItem[] = [
+  {
+    id: 'VCA-882194',
+    title: '1999 Base Set Charizard Holo #4',
+    set: 'Base Set 1st Edition',
+    year: 1999,
+    category: 'Pokemon',
+    grade: '10 GEM MINT',
+    score: 10,
+    condition: 'Pristine',
+    nfcStatus: 'ACTIVE',
+    tamperStatus: 'SECURE',
+    authStatus: 'PASSED',
+    owner: 'Todd William',
+    lastScan: '24 JUL 2026',
+    estimatedValue: 12450,
+    valueChange30d: 8.4,
+    imageBg: 'from-amber-500 via-orange-600 to-red-700',
+    artwork: '🔥 Winged Flame Dragon',
+    imageUrl: 'https://archives.bulbagarden.net/media/upload/4/4e/CharizardBaseSet4.jpg',
+    backImageUrl: 'https://upload.wikimedia.org/wikipedia/en/3/36/Pokemon_Trading_Card_Game_cardback.png',
+    subgrades: { centering: 10, corners: 10, edges: 9.5, surface: 10 },
+    history: [
+      { date: '24 JUL 2026 — 14:32', event: 'NFC Authentication Verified', status: 'verified' },
+      { date: '23 JUL 2026 — 18:41', event: 'QR Certificate Viewed', status: 'info' },
+      { date: '20 JUL 2026 — 09:12', event: 'Ownership Verified in Vault', status: 'verified' },
+      { date: '10 JUL 2026 — 16:22', event: 'VCA Certification Issued', status: 'verified' }
+    ]
+  },
+  {
+    id: 'VCA-110944',
+    title: '2009 Bowman Chrome Mike Trout Rookie Auto',
+    set: 'Bowman Chrome Refractor',
+    year: 2009,
+    category: 'Sports',
+    grade: '10 PRISTINE',
+    score: 10,
+    condition: 'Gem Mint Plus',
+    nfcStatus: 'ACTIVE',
+    tamperStatus: 'SECURE',
+    authStatus: 'PASSED',
+    owner: 'Todd William',
+    lastScan: '22 JUL 2026',
+    estimatedValue: 24800,
+    valueChange30d: 12.1,
+    imageBg: 'from-cyan-500 via-blue-600 to-indigo-900',
+    artwork: '⚾ On-Card Auto Refractor',
+    subgrades: { centering: 10, corners: 10, edges: 10, surface: 10 },
+    history: [
+      { date: '22 JUL 2026 — 11:15', event: 'NFC Scan via Secure Reader', status: 'verified' },
+      { date: '15 JUN 2026 — 14:00', event: 'Encapsulated & Sonic Sealed', status: 'verified' }
+    ]
+  },
+  {
+    id: 'VCA-552918',
+    title: '1993 Magic: The Gathering Alpha Black Lotus',
+    set: 'Alpha Limited Edition',
+    year: 1993,
+    category: 'Magic: The Gathering',
+    grade: '8.5 NM-MT+',
+    score: 8.5,
+    condition: 'Near Mint',
+    nfcStatus: 'ACTIVE',
+    tamperStatus: 'SECURE',
+    authStatus: 'PASSED',
+    owner: 'Todd William',
+    lastScan: '18 JUL 2026',
+    estimatedValue: 45000,
+    valueChange30d: 3.2,
+    imageBg: 'from-purple-900 via-stone-900 to-black',
+    artwork: '🪷 Alpha Black Lotus',
+    subgrades: { centering: 9.0, corners: 8.5, edges: 8.5, surface: 8.5 },
+    history: [
+      { date: '18 JUL 2026 — 10:00', event: 'UV Light & Optical Scan', status: 'verified' },
+      { date: '01 MAY 2026 — 12:30', event: 'Vault Transfer Completed', status: 'verified' }
+    ]
+  },
+  {
+    id: 'VCA-771203',
+    title: '1986 Fleer Michael Jordan #57',
+    set: 'Fleer Basketball',
+    year: 1986,
+    category: 'Sports',
+    grade: '9.0 MINT',
+    score: 9.0,
+    condition: 'Mint',
+    nfcStatus: 'ACTIVE',
+    tamperStatus: 'SECURE',
+    authStatus: 'PASSED',
+    owner: 'Todd William',
+    lastScan: '14 JUL 2026',
+    estimatedValue: 18500,
+    valueChange30d: -1.5,
+    imageBg: 'from-red-600 via-rose-700 to-blue-900',
+    artwork: '🏀 Rookie Air Slam Dunk',
+    subgrades: { centering: 9.0, corners: 9.0, edges: 9.5, surface: 8.5 },
+    history: [
+      { date: '14 JUL 2026 — 09:20', event: 'NFC Chip Authentication', status: 'verified' }
+    ]
+  },
+  {
+    id: 'VCA-339211',
+    title: '2020 Pokemon Pikachu Illustrator Promo',
+    set: 'Japanese Trophy Promo',
+    year: 2020,
+    category: 'Pokemon',
+    grade: '10 GEM MINT',
+    score: 10,
+    condition: 'Pristine',
+    nfcStatus: 'ACTIVE',
+    tamperStatus: 'SECURE',
+    authStatus: 'PASSED',
+    owner: 'Todd William',
+    lastScan: '02 JUL 2026',
+    estimatedValue: 8900,
+    valueChange30d: 5.4,
+    imageBg: 'from-yellow-500 via-amber-600 to-yellow-700',
+    artwork: '⚡ Pikachu Illustrator Art',
+    imageUrl: 'https://images.pokemontcg.io/swsh4/43_hires.png',
+    backImageUrl: 'https://upload.wikimedia.org/wikipedia/en/3/36/Pokemon_Trading_Card_Game_cardback.png',
+    subgrades: { centering: 10, corners: 10, edges: 10, surface: 10 },
+    history: [
+      { date: '02 JUL 2026 — 16:40', event: 'Graded & Sealed', status: 'verified' }
+    ]
+  },
+  {
+    id: 'VCA-994821',
+    title: '2002 Yu-Gi-Oh! Blue-Eyes White Dragon',
+    set: 'Legend of Blue Eyes First Ed',
+    year: 2002,
+    category: 'Yu-Gi-Oh!',
+    grade: '9.5 GEM MINT',
+    score: 9.5,
+    condition: 'Gem Mint',
+    nfcStatus: 'ACTIVE',
+    tamperStatus: 'SECURE',
+    authStatus: 'PASSED',
+    owner: 'Todd William',
+    lastScan: '28 JUN 2026',
+    estimatedValue: 6200,
+    valueChange30d: 14.2,
+    imageBg: 'from-blue-600 via-cyan-700 to-slate-900',
+    artwork: '🐉 Blue-Eyes White Dragon',
+    subgrades: { centering: 9.5, corners: 9.5, edges: 9.5, surface: 9.5 },
+    history: [
+      { date: '28 JUN 2026 — 14:10', event: 'NFC Scan Verified', status: 'verified' }
+    ]
+  }
+];
+
+export const mockListings: MarketplaceListing[] = [
+  {
+    id: 'LST-001',
+    cardId: 'VCA-882194',
+    title: '1999 Base Set Charizard Holo #4',
+    set: 'Base Set 1st Edition',
+    grade: '10 GEM MINT',
+    score: 10,
+    price: 13200,
+    estimatedValue: 12450,
+    seller: 'VaultElite_Edmonton',
+    category: 'Pokemon',
+    isAuction: true,
+    currentBid: 12850,
+    bidsCount: 19,
+    auctionEnds: '04h 22m 10s',
+    imageBg: 'from-amber-500 via-orange-600 to-red-700',
+    artwork: '🔥 Winged Flame Dragon',
+    imageUrl: 'https://archives.bulbagarden.net/media/upload/4/4e/CharizardBaseSet4.jpg',
+    backImageUrl: 'https://upload.wikimedia.org/wikipedia/en/3/36/Pokemon_Trading_Card_Game_cardback.png',
+    nfcVerified: true
+  },
+  {
+    id: 'LST-002',
+    cardId: 'VCA-110944',
+    title: '2009 Bowman Chrome Mike Trout Rookie Auto',
+    set: 'Bowman Chrome Refractor',
+    grade: '10 PRISTINE',
+    score: 10,
+    price: 26000,
+    estimatedValue: 24800,
+    seller: 'CalgaryCollector99',
+    category: 'Sports',
+    isAuction: false,
+    imageBg: 'from-cyan-500 via-blue-600 to-indigo-900',
+    artwork: '⚾ On-Card Auto Refractor',
+    nfcVerified: true
+  },
+  {
+    id: 'LST-003',
+    cardId: 'VCA-771203',
+    title: '1986 Fleer Michael Jordan #57',
+    set: 'Fleer Basketball',
+    grade: '9.0 MINT',
+    score: 9.0,
+    price: 18900,
+    estimatedValue: 18500,
+    seller: 'VintageVault_NY',
+    category: 'Sports',
+    isAuction: true,
+    currentBid: 18100,
+    bidsCount: 12,
+    auctionEnds: '12h 05m 30s',
+    imageBg: 'from-red-600 via-rose-700 to-blue-900',
+    artwork: '🏀 Rookie Air Slam Dunk',
+    nfcVerified: true
+  },
+  {
+    id: 'LST-004',
+    cardId: 'VCA-994821',
+    title: '2002 Yu-Gi-Oh! Blue-Eyes White Dragon',
+    set: 'Legend of Blue Eyes First Ed',
+    grade: '9.5 GEM MINT',
+    score: 9.5,
+    price: 6450,
+    estimatedValue: 6200,
+    seller: 'DuelistKingdom_Vault',
+    category: 'Yu-Gi-Oh!',
+    isAuction: false,
+    imageBg: 'from-blue-600 via-cyan-700 to-slate-900',
+    artwork: '🐉 Blue-Eyes White Dragon',
+    nfcVerified: true
+  },
+  {
+    id: 'LST-005',
+    cardId: 'VCA-449102',
+    title: '2023 Lorcana Enchanted Elsa - True Queen',
+    set: 'The First Chapter',
+    grade: '10 GEM MINT',
+    score: 10,
+    price: 2400,
+    estimatedValue: 2300,
+    seller: 'Inklands_Collector',
+    category: 'Lorcana',
+    isAuction: true,
+    currentBid: 2150,
+    bidsCount: 8,
+    auctionEnds: '02h 45m 12s',
+    imageBg: 'from-sky-400 via-blue-500 to-indigo-700',
+    artwork: '❄️ Enchanted Queen Elsa',
+    nfcVerified: true
+  },
+  {
+    id: 'LST-006',
+    cardId: 'VCA-551029',
+    title: '1999 One Piece Romance Dawn Shanks Alternate',
+    set: 'Romance Dawn',
+    grade: '10 GEM MINT',
+    score: 10,
+    price: 4100,
+    estimatedValue: 3950,
+    seller: 'GrandLineVault',
+    category: 'One Piece',
+    isAuction: false,
+    imageBg: 'from-red-700 via-amber-600 to-yellow-600',
+    artwork: '⚓ Red-Haired Shanks',
+    nfcVerified: true
+  }
+];
+
+export const mockLedgerEvents: LedgerEvent[] = [
+  {
+    id: 'LEDG-9928',
+    timestamp: '24 JUL 2026 — 14:32:04',
+    type: 'NFC_SCAN',
+    description: 'NFC Authentication handshake verified via secure element NTAG 424 DNA.',
+    status: 'verified',
+    serial: 'VCA-882194',
+    device: 'iPhone 15 Pro (Reader ID: EDM-09)',
+    signature: '0x8f4c21e...991b'
+  },
+  {
+    id: 'LEDG-9927',
+    timestamp: '23 JUL 2026 — 18:41:12',
+    type: 'QR_VIEW',
+    description: 'Public certificate record requested via optical QR code scan.',
+    status: 'info',
+    serial: 'VCA-882194',
+    device: 'Safari Mobile / iOS 19',
+    signature: '0x32a10ff...c48a'
+  },
+  {
+    id: 'LEDG-9926',
+    timestamp: '20 JUL 2026 — 09:12:55',
+    type: 'OWNERSHIP_VERIFY',
+    description: 'Cryptographic ownership challenge signed by vault holder key.',
+    status: 'verified',
+    serial: 'VCA-882194',
+    device: 'VCA Vault Hardware Module V2',
+    signature: '0x71b9aa4...22e0'
+  },
+  {
+    id: 'LEDG-9925',
+    timestamp: '15 JUL 2026 — 12:05:30',
+    type: 'VAULT_ADD',
+    description: 'Physical slab transferred into secure primary home vault inventory.',
+    status: 'verified',
+    serial: 'VCA-110944',
+    device: 'VCA Lab Terminal #04',
+    signature: '0x5511e49...f811'
+  },
+  {
+    id: 'LEDG-9924',
+    timestamp: '10 JUL 2026 — 16:22:01',
+    type: 'CERT_ISSUED',
+    description: 'Initial grade 10 Gem Mint certification record generated and hashed.',
+    status: 'verified',
+    serial: 'VCA-882194',
+    device: 'VCA Master Grading Authority Node',
+    signature: '0x10f9aa8...33c2'
+  }
+];
+
+export const mockValueHistory = [
+  { month: 'Jan', value: 7800 },
+  { month: 'Feb', value: 8400 },
+  { month: 'Mar', value: 8100 },
+  { month: 'Apr', value: 9200 },
+  { month: 'May', value: 10400 },
+  { month: 'Jun', value: 11200 },
+  { month: 'Jul', value: 12450 },
+];
+
+export const mockGradingStats = [
+  { grade: 'Grade 10', count: 142 },
+  { grade: 'Grade 9.5', count: 88 },
+  { grade: 'Grade 9.0', count: 64 },
+  { grade: 'Grade 8.5', count: 32 },
+  { grade: 'Grade 8.0', count: 18 },
+  { grade: 'Fail / Altered', count: 7 },
+];

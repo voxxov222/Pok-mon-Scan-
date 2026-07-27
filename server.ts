@@ -134,10 +134,10 @@ app.post('/api/scan-card', async (req, res) => {
 
     let responseText: string | undefined;
 
-    // Primary Attempt: gemini-2.5-flash
+    // Primary Attempt: gemini-3.6-flash
     try {
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3.6-flash',
         contents: [
           { role: 'user', parts: [{ text: prompt }, { inlineData: { mimeType: 'image/jpeg', data: base64Data } }] }
         ],
@@ -153,7 +153,7 @@ app.post('/api/scan-card', async (req, res) => {
       // Secondary Fallback Attempt: retry without strict schema if needed
       try {
         const fallbackResponse = await ai.models.generateContent({
-          model: 'gemini-2.5-flash',
+          model: 'gemini-3.6-flash',
           contents: [
             { role: 'user', parts: [{ text: prompt + "\nReturn ONLY valid JSON matching the card details." }, { inlineData: { mimeType: 'image/jpeg', data: base64Data } }] }
           ],
@@ -222,7 +222,7 @@ Return a JSON object with the single key "matchedId" containing the id of the ma
              
              try {
                const valResponse = await ai.models.generateContent({
-                  model: 'gemini-2.5-flash',
+                  model: 'gemini-3.6-flash',
                   contents: [
                     { role: 'user', parts: [{ text: validationPrompt }, { inlineData: { mimeType: 'image/jpeg', data: base64Data } }] }
                   ],

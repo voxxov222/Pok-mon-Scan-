@@ -25,8 +25,7 @@ export function useCards() {
 
     const q = query(
       collection(db, 'cards'),
-      where('userId', '==', user.uid),
-      orderBy('dateScanned', 'desc')
+      where('userId', '==', user.uid)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -34,6 +33,10 @@ export function useCards() {
       snapshot.forEach((doc) => {
         cardData.push({ id: doc.id, ...doc.data() } as CardData);
       });
+      
+      // Sort client-side to avoid Firestore composite index requirement
+      cardData.sort((a, b) => (b.dateScanned || 0) - (a.dateScanned || 0));
+      
       setCards(cardData);
       setLoading(false);
     }, (error) => {
