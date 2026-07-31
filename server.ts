@@ -28,20 +28,82 @@ try {
   console.error("Failed to initialize Gemini", e);
 }
 
-// API Routes
+// Helper to check for 429/quota error
+function isQuotaError(err: any): boolean {
+  const msg = String(err?.message || err || "").toLowerCase();
+  return msg.includes("429") || msg.includes("resource_exhausted") || msg.includes("quota");
+}
+
+// API Route: Search Cards directly from Pokemon TCG API (No Gemini API quota used!)
+app.get('/api/search-cards', async (req, res) => {
+  try {
+    const query = String(req.query.q || '').trim();
+    if (!query) {
+      return res.json({ data: [] });
+    }
+
+    const cleanQuery = query.replace(/[^a-zA-Z0-9 -]/g, "");
+    const tcgRes = await fetch(`https://api.pokemontcg.io/v2/cards?q=name:"*${encodeURIComponent(cleanQuery)}*"&pageSize=20`, {
+      headers: { 'User-Agent': 'PokeVault-AI', 'Accept': 'application/json' }
+    });
+
+    if (!tcgRes.ok) {
+      return res.status(tcgRes.status).json({ error: "Failed to fetch from Pokemon TCG API" });
+    }
+
+    const tcgData = await tcgRes.json();
+    const formattedCards = (tcgData.data || []).map((card: any) => {
+      const prices = card.tcgplayer?.prices || {};
+      const priceType = prices.holofoil || prices.reverseHolofoil || prices.normal || Object.values(prices)[0] || {};
+      
+      return {
+        name: card.name,
+        set: card.set?.name || 'Unknown Set',
+        cardNumber: card.number || '',
+        rarity: card.rarity || 'Common',
+        energyType: card.types?.[0] || 'Colorless',
+        condition: 'Near Mint',
+        lowPrice: priceType.low || 0.99,
+        medianPrice: priceType.mid || priceType.market || 1.99,
+        highPrice: priceType.high || 4.99,
+        sourceUrl: card.tcgplayer?.url || `https://www.tcgplayer.com/search/pokemon/product?productLineName=pokemon&q=${encodeURIComponent(card.name)}`,
+        imageUrl: card.images?.large || card.images?.small || '',
+        estimatedGrade: 9.0,
+        subGrades: {
+          centering: { score: 9.0, note: "Well centered visual borders" },
+          edges: { score: 9.0, note: "Clean edges" },
+          surface: { score: 9.0, note: "Good surface finish" },
+          corners: { score: 9.0, note: "Sharp corners" }
+        },
+        gradeReasoning: "Standard Near Mint card condition from official Pokemon TCG catalog.",
+        sources: card.tcgplayer?.url ? [{
+          name: 'TCGPlayer',
+          url: card.tcgplayer.url,
+          price: priceType.mid || priceType.market || 1.99,
+          type: 'API'
+        }] : []
+      };
+    });
+
+    res.json({ data: formattedCards });
+  } catch (err: any) {
+    console.error("Error searching cards:", err);
+    res.status(500).json({ error: "Failed to search cards" });
+  }
+});
+
+// API Route: Scan Card with Gemini
 app.post('/api/scan-card', async (req, res) => {
   try {
     if (!ai) {
-      return res.status(500).json({ error: "Gemini API not configured. Please check your API key in Settings > Secrets." });
+      return res.status(500).json({ error: "Gemini API key is not configured. Please add process.env.GEMINI_API_KEY in Settings > Secrets." });
     }
 
     const { imageBase64 } = req.body;
-    
     if (!imageBase64) {
       return res.status(400).json({ error: "No image provided." });
     }
 
-    // Strip data URL prefix if present
     const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, "");
 
     const prompt = `
@@ -57,7 +119,7 @@ app.post('/api/scan-card', async (req, res) => {
       1. Identification: Name, Set name, Card number, Rarity (e.g. Rare Holo, Secret Rare, Ultra Rare, Common, Shiny Vault), and Energy Type (Fire, Water, Grass, Lightning, Psychic, Fighting, Darkness, Metal, Dragon, Colorless).
       2. AI Grading Analysis: Carefully examine the card image for Centering, Edges, Surface, and Corners. Score each subcategory from 1 to 10 with a short observational note. Provide an overall estimated grade score (from 1.0 to 10.0, e.g. 9.5) and a comprehensive grade reasoning summary.
       3. Market Price Research: Provide low price, high price, median price, and source link URLs.
-      4. Image: Provide a direct high quality public image URL for this Pokemon card if known (e.g. from pokemontcg.io or official TCG databases).
+      4. Image: Provide a direct high quality public image URL for this Pokemon card if known.
     `;
 
     const responseSchema = {
@@ -134,7 +196,6 @@ app.post('/api/scan-card', async (req, res) => {
 
     let responseText: string | undefined;
 
-    // Primary Attempt: gemini-3.6-flash
     try {
       const response = await ai.models.generateContent({
         model: 'gemini-3.6-flash',
@@ -148,9 +209,16 @@ app.post('/api/scan-card', async (req, res) => {
       });
       responseText = response.text;
     } catch (primaryErr: any) {
-      console.warn("Primary Gemini scan attempt failed, retrying without schema constraints...", primaryErr?.message);
+      console.warn("Gemini vision scan call failed:", primaryErr?.message);
       
-      // Secondary Fallback Attempt: retry without strict schema if needed
+      if (isQuotaError(primaryErr)) {
+        return res.status(429).json({ 
+          error: "Gemini API daily request quota reached (Free Tier limit: 20 requests/day). Please wait before trying vision scan again, or use manual card search.",
+          code: "QUOTA_EXCEEDED"
+        });
+      }
+
+      // Retry once without schema ONLY if NOT a quota error
       try {
         const fallbackResponse = await ai.models.generateContent({
           model: 'gemini-3.6-flash',
@@ -163,94 +231,65 @@ app.post('/api/scan-card', async (req, res) => {
         });
         responseText = fallbackResponse.text;
       } catch (fallbackErr: any) {
-        throw fallbackErr; // Handled in outer catch
+        if (isQuotaError(fallbackErr)) {
+          return res.status(429).json({ 
+            error: "Gemini API daily request quota reached (Free Tier limit: 20 requests/day). Please use manual card search or try again later.",
+            code: "QUOTA_EXCEEDED"
+          });
+        }
+        throw fallbackErr;
       }
     }
 
-    if (responseText) {
-      let parsed = JSON.parse(responseText);
+    if (!responseText) {
+      return res.status(500).json({ error: "No response received from Gemini Vision." });
+    }
+
+    let parsed = JSON.parse(responseText);
+
+    // Look up canonical card info & market prices from Pokemon TCG API
+    try {
+      const cleanName = (parsed.name || "").replace(/[^a-zA-Z0-9 -]/g, "");
+      const cleanNum = (parsed.cardNumber || "").split('/')[0].replace(/[^0-9A-Za-z]/g, "");
       
-      try {
-        const cleanName = (parsed.name || "").replace(/[^a-zA-Z0-9 -]/g, "");
-        const cleanNum = (parsed.cardNumber || "").split('/')[0].replace(/[^0-9A-Za-z]/g, "");
-        
-        let tcgData: any = { data: [] };
-        
+      let tcgData: any = { data: [] };
+      
+      if (cleanName) {
         // Strategy 1: Name and Number
-        const query1 = `name:"${cleanName}" number:"${cleanNum}"`;
-        let tcgRes = await fetch(`https://api.pokemontcg.io/v2/cards?q=${encodeURIComponent(query1)}`, {
-          headers: { 'User-Agent': 'PokeVault-AI', 'Accept': 'application/json' }
-        });
-        if (tcgRes.ok) tcgData = await tcgRes.json();
+        if (cleanNum) {
+          const query1 = `name:"${cleanName}" number:"${cleanNum}"`;
+          const tcgRes = await fetch(`https://api.pokemontcg.io/v2/cards?q=${encodeURIComponent(query1)}`, {
+            headers: { 'User-Agent': 'PokeVault-AI', 'Accept': 'application/json' }
+          });
+          if (tcgRes.ok) tcgData = await tcgRes.json();
+        }
 
         // Strategy 2: If no matches, Name and Set
         if (!tcgData.data || tcgData.data.length === 0) {
            const query2 = `name:"${cleanName}" set.name:"${(parsed.set || "").replace(/[^a-zA-Z0-9 -]/g, "")}"`;
-           tcgRes = await fetch(`https://api.pokemontcg.io/v2/cards?q=${encodeURIComponent(query2)}`, {
+           const tcgRes = await fetch(`https://api.pokemontcg.io/v2/cards?q=${encodeURIComponent(query2)}`, {
              headers: { 'User-Agent': 'PokeVault-AI', 'Accept': 'application/json' }
            });
            if (tcgRes.ok) tcgData = await tcgRes.json();
         }
 
-        // Strategy 3: Just Name (Limit to 20 to avoid token blowup)
+        // Strategy 3: Just Name
         if (!tcgData.data || tcgData.data.length === 0) {
            const query3 = `name:"${cleanName}"`;
-           tcgRes = await fetch(`https://api.pokemontcg.io/v2/cards?q=${encodeURIComponent(query3)}&pageSize=20`, {
+           const tcgRes = await fetch(`https://api.pokemontcg.io/v2/cards?q=${encodeURIComponent(query3)}&pageSize=10`, {
              headers: { 'User-Agent': 'PokeVault-AI', 'Accept': 'application/json' }
            });
            if (tcgRes.ok) tcgData = await tcgRes.json();
         }
 
         if (tcgData.data && tcgData.data.length > 0) {
+          // Programmatic candidate matching (0 extra Gemini API calls!)
           let bestMatch = tcgData.data[0];
-          
-          if (tcgData.data.length > 1) {
-             // Ask Gemini to pick the exact match!
-             const candidates = tcgData.data.map((c: any) => ({
-                id: c.id,
-                name: c.name,
-                set: c.set?.name,
-                number: c.number,
-                rarity: c.rarity
-             }));
-             
-             const validationPrompt = `Here is a list of candidate cards from the Pokémon TCG database:
-${JSON.stringify(candidates, null, 2)}
-             
-Based on the image of the card you just analyzed, which EXACT card matches? Look closely at the set symbol, card number, and holographic/shiny variant.
-Return a JSON object with the single key "matchedId" containing the id of the matched card. If you cannot determine, return the best guess.`;
-             
-             try {
-               const valResponse = await ai.models.generateContent({
-                  model: 'gemini-3.6-flash',
-                  contents: [
-                    { role: 'user', parts: [{ text: validationPrompt }, { inlineData: { mimeType: 'image/jpeg', data: base64Data } }] }
-                  ],
-                  config: {
-                    responseMimeType: "application/json",
-                    responseSchema: {
-                      type: Type.OBJECT,
-                      properties: {
-                        matchedId: { type: Type.STRING }
-                      },
-                      required: ["matchedId"]
-                    }
-                  }
-                });
-                
-                if (valResponse.text) {
-                  const valParsed = JSON.parse(valResponse.text);
-                  const foundMatch = tcgData.data.find((c: any) => c.id === valParsed.matchedId);
-                  if (foundMatch) {
-                    bestMatch = foundMatch;
-                  }
-                }
-             } catch (valErr) {
-               console.warn("Validation Gemini prompt failed, falling back to first match", valErr);
-             }
+          if (tcgData.data.length > 1 && cleanNum) {
+            const numMatch = tcgData.data.find((c: any) => c.number && String(c.number).toLowerCase() === cleanNum.toLowerCase());
+            if (numMatch) bestMatch = numMatch;
           }
 
-          // Apply bestMatch data to parsed
           parsed.name = bestMatch.name || parsed.name;
           if (bestMatch.set) {
             parsed.set = bestMatch.set.name || parsed.set;
@@ -287,21 +326,19 @@ Return a JSON object with the single key "matchedId" containing the id of the ma
             }
           }
         }
-      } catch (tcgErr) {
-        console.warn("TCG API lookup failed, using Gemini response", tcgErr);
       }
-
-      res.json(parsed);
-    } else {
-      res.status(500).json({ error: "No response received from Gemini Vision." });
+    } catch (tcgErr) {
+      console.warn("TCG API lookup failed, using Gemini response", tcgErr);
     }
+
+    res.json(parsed);
+
   } catch (error: any) {
     console.error("Error scanning card:", error);
-    const errString = String(error?.message || error || "");
-
-    if (errString.includes("429") || errString.includes("RESOURCE_EXHAUSTED") || errString.includes("quota")) {
+    if (isQuotaError(error)) {
       return res.status(429).json({ 
-        error: "Gemini API rate limit / quota exceeded. Please wait 30–60 seconds before scanning again, or check your API key rate limits." 
+        error: "Gemini API daily request quota reached (Free Tier limit: 20 requests/day). Please wait before scanning again, or use manual card search.",
+        code: "QUOTA_EXCEEDED"
       });
     }
 
@@ -331,3 +368,4 @@ async function startServer() {
 }
 
 startServer();
+

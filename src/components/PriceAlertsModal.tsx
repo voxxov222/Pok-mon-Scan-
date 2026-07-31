@@ -11,12 +11,14 @@ interface PriceAlertsModalProps {
 }
 
 export function PriceAlertsModal({ alerts, onClose, onRequestPush, onMarkRead }: PriceAlertsModalProps) {
+  const [pushStatus, setPushStatus] = React.useState<string | null>(null);
+
   const handleEnablePush = async () => {
     const res = await onRequestPush();
     if (res === 'granted') {
-      alert("Push notifications enabled for PokéVault market alerts!");
+      setPushStatus("Push notifications enabled for PokéVault market alerts!");
     } else {
-      alert("Push notification permission was not granted.");
+      setPushStatus("Push notification permission was not granted.");
     }
   };
 
@@ -55,6 +57,12 @@ export function PriceAlertsModal({ alerts, onClose, onRequestPush, onMarkRead }:
             Enable Push
           </button>
         </div>
+
+        {pushStatus && (
+          <div className="p-2.5 bg-white/10 rounded-xl text-xs text-primary font-medium text-center">
+            {pushStatus}
+          </div>
+        )}
 
         {/* Alerts List */}
         <div className="space-y-2 max-h-60 overflow-y-auto pr-1">

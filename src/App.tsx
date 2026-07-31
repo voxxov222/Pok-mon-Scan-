@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { Camera, LogIn, TrendingUp, Search, ShieldAlert, Bell, Fingerprint, Sparkles, Filter, Layers, MessageSquare, ExternalLink } from 'lucide-react';
+import { useState, useMemo, useEffect } from 'react';
+import { Camera, LogIn, TrendingUp, Search, ShieldAlert, Bell, Fingerprint, Sparkles, Filter, Layers, MessageSquare, ExternalLink, Plus, BookOpen, Grid as GridIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { signInWithPopup } from 'firebase/auth';
 import { format } from 'date-fns';
@@ -16,6 +16,7 @@ import { CommunityForum } from './components/Community/CommunityForum';
 import { PriceAlertsModal } from './components/PriceAlertsModal';
 import { BiometricAuthModal } from './components/BiometricAuthModal';
 import { ZipUpgradeModal } from './components/ZipUpgradeModal';
+import { ManualCardSearchModal } from './components/ManualCardSearchModal';
 import { FileArchive } from 'lucide-react';
 import { CardData, EnergyType } from './types';
 
@@ -127,12 +128,25 @@ function PortfolioChart({ cards }: { cards: CardData[] }) {
   );
 }
 
+import { TrendingCardsWidget } from './components/Dashboard/TrendingCardsWidget';
+import { NewsFeedWidget } from './components/Dashboard/NewsFeedWidget';
+import { ToastContainer, ToastMessage } from './components/Toast';
+import { RefreshCw } from 'lucide-react';
+
+interface BatchProgressItem {
+  id: number;
+  status: 'pending' | 'processing' | 'done' | 'failed';
+  cardName?: string;
+  error?: string;
+}
+
 export default function App() {
   const { user, loading, cards, addCard, removeCard, toggleTradeStatus, importCards } = useCards();
   const { alerts, unreadCount, requestNotificationPermission, markAllAsRead } = usePriceAlerts(cards);
 
   const [activeTab, setActiveTab] = useState<'collection' | 'trades' | 'forum'>('collection');
   const [showScanner, setShowScanner] = useState(false);
+  const [showManualSearch, setShowManualSearch] = useState(false);
   const [showAlertsModal, setShowAlertsModal] = useState(false);
   const [showBiometricModal, setShowBiometricModal] = useState(false);
   const [showZipModal, setShowZipModal] = useState(false);
@@ -140,19 +154,84 @@ export default function App() {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedEnergyFilter, setSelectedEnergyFilter] = useState<string>('ALL');
+  const [viewMode, setViewMode] = useState<'grid' | 'binders'>('grid');
+  const [expandedBinder, setExpandedBinder] = useState<string | null>(null);
 
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analyzeStep, setAnalyzeStep] = useState('');
+  const [batchProgress, setBatchProgress] = useState<BatchProgressItem[]>([]);
 
+  // Toast State
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
+
+  // Failed Scan Queue (Offline / Retries)
+  const [failedScanQueue, setFailedScanQueue] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('pokevault_pending_scans');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  const addToast = (type: 'success' | 'error' | 'info', message: string, actionText?: string, onAction?: () => void) => {
+    const id = Math.random().toString(36).substring(2, 9);
+    setToasts(prev => [...prev, { id, type, message, actionText, onAction }]);
+  };
+
+  const dismissToast = (id: string) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  };
+
+  const saveFailedScan = (imageBase64: string) => {
+    setFailedScanQueue(prev => {
+      const next = [...prev, imageBase64];
+      localStorage.setItem('pokevault_pending_scans', JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const clearFailedQueue = () => {
+    setFailedScanQueue([]);
+    localStorage.removeItem('pokevault_pending_scans');
+  };
+
+  // Card Removal with 5-second Undo
+  const handleRemoveCardWithUndo = async (cardId: string) => {
+    const cardToRemove = cards.find(c => c.id === cardId);
+    if (!cardToRemove) return;
+
+    try {
+      await removeCard(cardId);
+      setSelectedCardForDetail(null);
+
+      addToast('info', `Removed "${cardToRemove.name}" from Vault`, 'Undo', async () => {
+        const { id, userId, dateScanned, ...rest } = cardToRemove;
+        await addCard(rest);
+        addToast('success', `Restored "${cardToRemove.name}" to Vault!`);
+      });
+    } catch (err: any) {
+      addToast('error', `Failed to remove card: ${err?.message || err}`);
+    }
+  };
+
+  // Batch Processing
   const handleBatchScanStart = async (images: string[]) => {
     setShowScanner(false);
     if (!images || images.length === 0) return;
     
     setIsAnalyzing(true);
+    const initialItems: BatchProgressItem[] = images.map((_, idx) => ({
+      id: idx + 1,
+      status: 'pending'
+    }));
+    setBatchProgress(initialItems);
+
     let successCount = 0;
     
     for (let i = 0; i < images.length; i++) {
       setAnalyzeStep(`Processing card ${i + 1} of ${images.length}...`);
+      setBatchProgress(prev => prev.map((item, idx) => idx === i ? { ...item, status: 'processing' } : item));
       
       try {
         const response = await fetch('/api/scan-card', {
@@ -163,25 +242,41 @@ export default function App() {
         
         const data = await response.json();
         if (!response.ok) {
+          if (response.status === 429 || data.code === 'QUOTA_EXCEEDED') {
+            setIsAnalyzing(false);
+            addToast('error', 'Gemini AI quota reached. Queueing remaining scans.');
+            // Queue remaining images
+            for (let j = i; j < images.length; j++) {
+              saveFailedScan(images[j]);
+            }
+            setShowManualSearch(true);
+            return;
+          }
           throw new Error(data.error || "Failed to scan card");
         }
         
         await addCard(data);
         successCount++;
+        setBatchProgress(prev => prev.map((item, idx) => idx === i ? { ...item, status: 'done', cardName: data.name } : item));
       } catch (err: any) {
-        console.error("Batch scan error on card", i + 1, err);
-        // Continue processing others despite error
+        saveFailedScan(images[i]);
+        setBatchProgress(prev => prev.map((item, idx) => idx === i ? { ...item, status: 'failed', error: err.message } : item));
       }
     }
     
-    setIsAnalyzing(false);
+    setTimeout(() => {
+      setIsAnalyzing(false);
+      setBatchProgress([]);
+    }, 1500);
+
     if (successCount > 0) {
-      alert(`Batch scan complete! Added ${successCount} cards to Vault.`);
+      addToast('success', `Batch scan complete! Added ${successCount} cards to Vault.`);
     } else {
-      alert("Batch scan failed. No cards could be processed.");
+      addToast('error', "Batch scan failed. Saved captures to pending queue.");
     }
   };
 
+  // Single Card Processing
   const handleScanStart = async (imageBase64: string) => {
     setShowScanner(false);
     setIsAnalyzing(true);
@@ -189,11 +284,11 @@ export default function App() {
 
     setTimeout(() => {
       setAnalyzeStep('Assessing centering, edges, surface & corners...');
-    }, 2000);
+    }, 1500);
 
     setTimeout(() => {
-      setAnalyzeStep('Researching live prices across TCGPlayer, PriceCharting & eBay...');
-    }, 4500);
+      setAnalyzeStep('Researching live prices across TCGPlayer & PriceCharting...');
+    }, 3200);
 
     try {
       const response = await fetch('/api/scan-card', {
@@ -204,12 +299,24 @@ export default function App() {
       
       const data = await response.json();
       if (!response.ok) {
+        if (response.status === 429 || data.code === 'QUOTA_EXCEEDED') {
+          setIsAnalyzing(false);
+          addToast('error', 'Gemini AI Vision daily quota limit reached.', 'Search TCG', () => {
+            setShowManualSearch(true);
+          });
+          saveFailedScan(imageBase64);
+          return;
+        }
         throw new Error(data.error || "Failed to scan card");
       }
       
       await addCard(data);
+      addToast('success', `Added ${data.name} to your Vault!`);
     } catch (err: any) {
-      alert(err.message || "An error occurred during Gemini AI analysis.");
+      saveFailedScan(imageBase64);
+      addToast('error', err.message || "An error occurred during Gemini AI analysis. Saved to retry queue.", 'Search TCG', () => {
+        setShowManualSearch(true);
+      });
     } finally {
       setIsAnalyzing(false);
     }
@@ -223,6 +330,17 @@ export default function App() {
       return matchesSearch && matchesEnergy;
     });
   }, [cards, searchTerm, selectedEnergyFilter]);
+
+  const groupedCardsBySet = useMemo(() => {
+    const groups: Record<string, CardData[]> = {};
+    filteredCards.forEach(card => {
+      const set = card.set || 'Unknown Set';
+      if (!groups[set]) groups[set] = [];
+      groups[set].push(card);
+    });
+    // sort groups by number of cards desc
+    return Object.entries(groups).sort((a, b) => b[1].length - a[1].length);
+  }, [filteredCards]);
 
   if (loading) {
     return (
@@ -238,6 +356,8 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white flex flex-col font-sans overflow-x-hidden">
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+
       {/* Top Navigation Bar */}
       <header className="h-16 border-b border-white/10 flex items-center justify-between px-4 sm:px-6 bg-[#12121a] sticky top-0 z-30 shadow-md">
         <div className="flex items-center gap-3">
@@ -273,12 +393,36 @@ export default function App() {
 
         {/* User & Actions */}
         <div className="flex items-center gap-2 sm:gap-3">
+          {failedScanQueue.length > 0 && (
+            <button 
+              onClick={async () => {
+                const retryItems = [...failedScanQueue];
+                clearFailedQueue();
+                await handleBatchScanStart(retryItems);
+              }}
+              className="p-2 text-amber-300 hover:bg-amber-500/20 rounded-full transition-colors flex items-center gap-1.5 text-xs font-bold bg-amber-500/10 border border-amber-500/40 px-3 animate-pulse"
+              title="Retry queued scans"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline text-[10px] uppercase tracking-widest">Retry ({failedScanQueue.length})</span>
+            </button>
+          )}
+
           <button 
             onClick={() => setShowScanner(true)}
             className="p-2 text-primary hover:bg-white/10 rounded-full transition-colors flex items-center justify-center border border-primary/50 bg-primary/10 shadow-lg shadow-primary/20"
-            title="Scan Pokémon Card"
+            title="Scan Pokémon Card with AI Camera"
           >
             <Camera className="w-5 h-5" />
+          </button>
+
+          <button 
+            onClick={() => setShowManualSearch(true)}
+            className="p-2 text-white/80 hover:text-primary transition-colors flex items-center gap-1 text-xs font-bold bg-white/5 rounded-full px-3 border border-white/10"
+            title="Manual Card Search"
+          >
+            <Search className="w-4 h-4 text-primary" />
+            <span className="hidden sm:inline text-[10px] uppercase tracking-widest text-white/80">Search TCG</span>
           </button>
 
           <button 
@@ -324,6 +468,12 @@ export default function App() {
           <>
             <PortfolioChart cards={cards} />
 
+            {/* Dashboard Widgets */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <TrendingCardsWidget />
+              <NewsFeedWidget />
+            </div>
+
             {/* Filters Bar */}
             <div className="flex flex-col sm:flex-row gap-3 justify-between items-stretch sm:items-center">
               <div className="relative flex-1">
@@ -360,15 +510,48 @@ export default function App() {
                 <span className="text-[10px] text-white/40 uppercase font-bold tracking-widest">
                   Collection Cards ({filteredCards.length})
                 </span>
+                
+                <div className="flex bg-[#12121a] p-1 rounded-xl border border-white/10">
+                  <button
+                    onClick={() => setViewMode('grid')}
+                    className={`p-1.5 rounded-lg transition-colors ${viewMode === 'grid' ? 'bg-white/10 text-white' : 'text-white/40 hover:text-white/80'}`}
+                    title="Grid View"
+                  >
+                    <GridIcon className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => setViewMode('binders')}
+                    className={`p-1.5 rounded-lg transition-colors ${viewMode === 'binders' ? 'bg-white/10 text-white' : 'text-white/40 hover:text-white/80'}`}
+                    title="Binder View"
+                  >
+                    <BookOpen className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
 
               {filteredCards.length === 0 ? (
-                <div className="text-center p-12 border border-dashed border-white/10 rounded-3xl bg-white/[0.02]">
-                  <Layers className="w-10 h-10 text-white/20 mx-auto mb-3" />
-                  <p className="text-sm font-bold text-white/60">No matching cards found</p>
-                  <p className="text-xs text-white/40 mt-1">Scan a Pokémon card using the camera scanner below!</p>
+                <div className="text-center p-12 border border-dashed border-white/10 rounded-3xl bg-white/[0.02] flex flex-col items-center justify-center space-y-4">
+                  <Layers className="w-10 h-10 text-white/20 mx-auto" />
+                  <div>
+                    <p className="text-sm font-bold text-white/70">Your Vault is Empty</p>
+                    <p className="text-xs text-white/40 mt-1 max-w-sm">Scan a Pokémon card using your camera or search the official Pokémon TCG catalog manually!</p>
+                  </div>
+                  <div className="flex flex-wrap gap-3 justify-center pt-2">
+                    <button 
+                      onClick={() => setShowScanner(true)}
+                      className="px-5 py-2.5 bg-primary hover:bg-primary-hover text-black rounded-xl font-bold text-xs uppercase tracking-widest flex items-center gap-2 transition-all shadow-lg shadow-primary/20"
+                    >
+                      <Camera className="w-4 h-4" /> Live Camera Scan
+                    </button>
+                    <button 
+                      onClick={() => setShowManualSearch(true)}
+                      className="px-5 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl font-bold text-xs uppercase tracking-widest flex items-center gap-2 transition-all border border-white/10"
+                    >
+                      <Search className="w-4 h-4 text-primary" /> Search TCG Catalog
+                    </button>
+                  </div>
                 </div>
-              ) : (
+              ) : viewMode === 'grid' ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {filteredCards.map(card => (
                     <PhysicalCard 
@@ -377,6 +560,64 @@ export default function App() {
                       onClick={() => setSelectedCardForDetail(card)}
                     />
                   ))}
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {groupedCardsBySet.map(([setName, setCards]) => {
+                    const isExpanded = expandedBinder === setName;
+                    const totalValue = setCards.reduce((acc, c) => acc + (c.highPrice || c.lowPrice || 0), 0);
+                    return (
+                      <div key={setName} className="bg-[#12121a] border border-white/10 rounded-3xl overflow-hidden shadow-xl transition-all">
+                        {/* Binder Header */}
+                        <div 
+                          className="p-5 flex items-center justify-between cursor-pointer hover:bg-white/[0.02] transition-colors"
+                          onClick={() => setExpandedBinder(isExpanded ? null : setName)}
+                        >
+                          <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-xl bg-white/5 border border-white/10 flex flex-col items-center justify-center text-primary">
+                              <BookOpen className="w-5 h-5 mb-0.5" />
+                              <span className="text-[9px] font-bold tracking-widest uppercase">{setCards.length}</span>
+                            </div>
+                            <div>
+                              <h3 className="font-bold text-white text-lg tracking-tight">{setName}</h3>
+                              <p className="text-[10px] text-white/40 uppercase tracking-widest font-bold mt-0.5">Series Binder</p>
+                            </div>
+                          </div>
+                          <div className="text-right flex items-center gap-4">
+                            <div className="hidden sm:block">
+                              <span className="text-[10px] text-white/40 uppercase tracking-widest font-bold block mb-0.5">Total Value</span>
+                              <span className="text-sm font-mono font-bold text-primary">${totalValue.toFixed(2)}</span>
+                            </div>
+                            <div className={`transform transition-transform ${isExpanded ? 'rotate-180' : ''}`}>
+                              <Filter className="w-5 h-5 text-white/30" />
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* Expanded Cards Grid */}
+                        <AnimatePresence>
+                          {isExpanded && (
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              className="border-t border-white/10"
+                            >
+                              <div className="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 bg-black/20">
+                                {setCards.map(card => (
+                                  <PhysicalCard 
+                                    key={card.id} 
+                                    card={card} 
+                                    onClick={() => setSelectedCardForDetail(card)}
+                                  />
+                                ))}
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -394,15 +635,35 @@ export default function App() {
             initial={{ opacity: 0, y: 50 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 50 }}
-            className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-[#12121a]/90 backdrop-blur-md border border-primary/50 shadow-[0_0_30px_rgba(255,203,5,0.2)] rounded-2xl p-4 flex items-center gap-4 z-50 w-[90%] max-w-sm"
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-[#12121a]/95 backdrop-blur-md border border-primary/50 shadow-[0_0_30px_rgba(255,203,5,0.2)] rounded-2xl p-4 flex flex-col gap-3 z-50 w-[90%] max-w-md"
           >
-            <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center text-primary flex-shrink-0">
-              <Camera className="w-5 h-5 animate-pulse" />
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center text-primary flex-shrink-0 border border-primary/30">
+                <Camera className="w-5 h-5 animate-pulse" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-sm font-black text-white tracking-tight">Gemini AI Processing</h3>
+                <p className="text-[10px] text-primary font-mono mt-0.5 font-bold truncate">{analyzeStep}</p>
+              </div>
             </div>
-            <div className="flex-1 min-w-0">
-              <h3 className="text-sm font-black text-white tracking-tight">AI Processing</h3>
-              <p className="text-[10px] text-primary font-mono mt-0.5 font-bold truncate">{analyzeStep}</p>
-            </div>
+
+            {/* Batch Progress List */}
+            {batchProgress.length > 0 && (
+              <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1 border-t border-white/10 pt-2 text-xs">
+                {batchProgress.map(item => (
+                  <div key={item.id} className="flex justify-between items-center bg-black/40 px-3 py-1.5 rounded-lg font-mono text-[11px]">
+                    <span className="text-white/70">Card #{item.id} {item.cardName && `• ${item.cardName}`}</span>
+                    <span className={`font-bold ${
+                      item.status === 'done' ? 'text-emerald-400' :
+                      item.status === 'processing' ? 'text-primary animate-pulse' :
+                      item.status === 'failed' ? 'text-red-400' : 'text-white/30'
+                    }`}>
+                      {item.status.toUpperCase()}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
@@ -414,9 +675,20 @@ export default function App() {
             onCancel={() => setShowScanner(false)}
             onScanStart={handleScanStart}
             onBatchScanStart={handleBatchScanStart}
+            onOpenManualSearch={() => setShowManualSearch(true)}
             onScanComplete={async (result) => {
               await addCard(result);
               setShowScanner(false);
+            }}
+          />
+        )}
+
+        {showManualSearch && (
+          <ManualCardSearchModal 
+            onClose={() => setShowManualSearch(false)}
+            onAddCard={async (card) => {
+              await addCard(card);
+              addToast('success', `Added ${card.name} to Vault!`);
             }}
           />
         )}
@@ -426,8 +698,7 @@ export default function App() {
             card={selectedCardForDetail}
             onClose={() => setSelectedCardForDetail(null)}
             onRemove={async (id) => {
-              await removeCard(id);
-              setSelectedCardForDetail(null);
+              await handleRemoveCardWithUndo(id);
             }}
             onToggleTrade={async (id, isForTrade, tradeWants) => {
               await toggleTradeStatus(id, isForTrade, tradeWants);
@@ -456,6 +727,7 @@ export default function App() {
             cards={cards}
             onImportCards={async (imported) => {
               await importCards(imported);
+              addToast('success', `Imported ${imported.length} cards from backup!`);
             }}
             onClose={() => setShowZipModal(false)}
           />

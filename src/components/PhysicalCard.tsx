@@ -32,6 +32,8 @@ const getGradeColor = (grade: number) => {
 export function PhysicalCard({ card, onClick, showGradeBadge = true }: PhysicalCardProps) {
   const [rotateX, setRotateX] = useState(0);
   const [rotateY, setRotateY] = useState(0);
+  const [isHovered, setIsHovered] = useState(false);
+  const [cssVars, setCssVars] = useState<React.CSSProperties>({});
 
   const isShiny = (card.rarity || "").toLowerCase().includes('shiny') || (card.name || "").toLowerCase().includes('shiny');
   const isHolo = (card.rarity || "").toLowerCase().includes('holo') || 
@@ -43,19 +45,37 @@ export function PhysicalCard({ card, onClick, showGradeBadge = true }: PhysicalC
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const x = e.clientX - rect.left; // x position within the element
+    const y = e.clientY - rect.top;  // y position within the element
     const centerX = rect.width / 2;
     const centerY = rect.height / 2;
-    const rotX = ((y - centerY) / centerY) * -10;
-    const rotY = ((x - centerX) / centerX) * 10;
+    
+    const rotX = ((y - centerY) / centerY) * -15; // Max 15deg
+    const rotY = ((x - centerX) / centerX) * 15;
+    
     setRotateX(rotX);
     setRotateY(rotY);
+
+    const px = (x / rect.width) * 100;
+    const py = (y / rect.height) * 100;
+    
+    setCssVars({
+      '--pointer-x': `${px}%`,
+      '--pointer-y': `${py}%`,
+      '--pointer-from-left': (x / rect.width).toString(),
+      '--pointer-from-top': (y / rect.height).toString(),
+    } as React.CSSProperties);
+  };
+
+  const handleMouseEnter = () => {
+    setIsHovered(true);
   };
 
   const handleMouseLeave = () => {
     setRotateX(0);
     setRotateY(0);
+    setIsHovered(false);
+    setCssVars({});
   };
 
   const energyStyle = card.energyType && energyColors[card.energyType] 
@@ -65,19 +85,22 @@ export function PhysicalCard({ card, onClick, showGradeBadge = true }: PhysicalC
   return (
     <div
       onClick={onClick}
+      onMouseEnter={handleMouseEnter}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
       style={{
-        transform: `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`,
-        transition: rotateX === 0 ? 'transform 0.5s ease' : 'none'
+        transform: `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale3d(${isHovered ? 1.05 : 1}, ${isHovered ? 1.05 : 1}, 1)`,
+        transition: isHovered ? 'none' : 'transform 0.5s ease',
+        ...cssVars
       }}
-      className={`relative group bg-[#12121a] border border-white/10 rounded-2xl p-4 flex flex-col justify-between cursor-pointer holo-card-effect transition-all duration-300 hover:border-primary/50 hover:shadow-2xl hover:shadow-primary/10 overflow-hidden min-h-[220px]`}
+      className={`relative group bg-[#12121a] border border-white/10 rounded-2xl p-4 flex flex-col justify-between cursor-pointer holo-card-effect overflow-hidden min-h-[220px] ${isHolo ? 'is-holo' : ''} ${isShiny ? 'is-shiny' : ''}`}
     >
-      {/* Foil Shimmer Overlay for Holo Cards */}
-      {isHolo && <div className="foil-overlay" />}
+      {/* Glare and Foil Overlays */}
+      <div className="card-glare" />
+      {isHolo && <div className="card-foil" />}
 
       {/* Top Header Row */}
-      <div className="flex justify-between items-start gap-2 z-10">
+      <div className="relative flex justify-between items-start gap-2 z-10">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5 mb-1">
             <span className={`text-[9px] uppercase font-bold tracking-widest px-2.5 py-0.5 rounded-full border ${energyStyle.bg} ${energyStyle.text} ${energyStyle.border}`}>
@@ -130,7 +153,7 @@ export function PhysicalCard({ card, onClick, showGradeBadge = true }: PhysicalC
       </div>
 
       {/* Middle Card Art Thumbnail & Rarity Badge */}
-      <div className="my-3 flex gap-3 items-center z-10">
+      <div className="relative my-3 flex gap-3 items-center z-10">
         <div className="w-16 h-20 bg-black/60 rounded-xl border border-white/10 overflow-hidden flex-shrink-0 flex items-center justify-center relative shadow-inner">
           {card.imageUrl ? (
             <img src={card.imageUrl} alt={card.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
@@ -165,7 +188,7 @@ export function PhysicalCard({ card, onClick, showGradeBadge = true }: PhysicalC
       </div>
 
       {/* Bottom Pricing Row */}
-      <div className="pt-2 border-t border-white/10 flex justify-between items-center z-10 font-mono">
+      <div className="relative pt-2 border-t border-white/10 flex justify-between items-center z-10 font-mono">
         <div>
           <span className="text-[9px] text-white/40 uppercase tracking-widest font-sans font-bold block">Top Market</span>
           <span className="text-lg font-bold text-primary">${card.highPrice?.toFixed(2) || '0.00'}</span>

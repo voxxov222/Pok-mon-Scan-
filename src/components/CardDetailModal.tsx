@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { CardData } from '../types';
-import { X, ExternalLink, Award, ShieldCheck, Tag, Trash2, Share2, Sparkles, AlertCircle } from 'lucide-react';
+import { X, ExternalLink, Award, ShieldCheck, Tag, Trash2, Share2, Sparkles, AlertCircle, CheckCircle } from 'lucide-react';
 import { motion } from 'motion/react';
+import { ConfirmDialog } from './ConfirmDialog';
 
 interface CardDetailModalProps {
   card: CardData;
@@ -14,11 +15,18 @@ export function CardDetailModal({ card, onClose, onRemove, onToggleTrade }: Card
   const [isForTrade, setIsForTrade] = useState(card.isForTrade || false);
   const [tradeWants, setTradeWants] = useState(card.tradeWants || '');
   const [showTradeSuccess, setShowTradeSuccess] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [gradingSubmitted, setGradingSubmitted] = useState(false);
 
   const handleSaveTrade = () => {
     onToggleTrade(card.id, isForTrade, tradeWants);
     setShowTradeSuccess(true);
     setTimeout(() => setShowTradeSuccess(false), 2000);
+  };
+
+  const handleConfirmDelete = () => {
+    onRemove(card.id);
+    onClose();
   };
 
   return (
@@ -243,40 +251,51 @@ export function CardDetailModal({ card, onClose, onRemove, onToggleTrade }: Card
         </div>
 
         {/* Modal Actions */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-4 border-t border-white/10">
-          <button 
-            onClick={() => {
-              if (confirm(`Remove ${card.name} from your collection?`)) {
-                onRemove(card.id);
-                onClose();
-              }
-            }}
-            className="flex-1 text-red-400 hover:text-red-300 text-[10px] font-bold uppercase tracking-widest flex items-center justify-center gap-1.5 p-3 rounded-xl bg-red-500/10 hover:bg-red-500/20 transition-colors"
-          >
-            <Trash2 className="w-3.5 h-3.5" /> Delete Card
-          </button>
-          
-          <button 
-            onClick={() => alert(`Redirecting to Marketplace to list ${card.name} for Sale...`)}
-            className="flex-1 text-emerald-400 hover:text-emerald-300 text-[10px] font-bold uppercase tracking-widest flex items-center justify-center gap-1.5 p-3 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 transition-colors"
-          >
-            <Tag className="w-3.5 h-3.5" /> Sell on Market
-          </button>
-          
-          <button 
-            onClick={() => alert(`Starting Verified Card Authority grading submission for ${card.name}...`)}
-            className="flex-1 sm:col-span-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold px-4 py-3 rounded-xl text-[10px] sm:text-xs uppercase tracking-widest transition-colors flex items-center justify-center gap-2 shadow-lg shadow-blue-900/20"
-          >
-            <Award className="w-4 h-4" /> Send to Get Graded (Verified Card Authority)
-          </button>
+        <div className="space-y-3 pt-4 border-t border-white/10">
+          {gradingSubmitted && (
+            <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-xl text-xs text-blue-300 flex items-center gap-2">
+              <CheckCircle className="w-4 h-4 text-blue-400 flex-shrink-0" />
+              <span>Grading submission request registered for {card.name} with Verified Card Authority!</span>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <button 
+              onClick={() => setShowDeleteConfirm(true)}
+              className="text-red-400 hover:text-red-300 text-[10px] sm:text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-1.5 p-3 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 transition-colors"
+            >
+              <Trash2 className="w-4 h-4" /> Delete Card
+            </button>
+            
+            <button 
+              onClick={() => {
+                setGradingSubmitted(true);
+                setTimeout(() => setGradingSubmitted(false), 4000);
+              }}
+              className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold p-3 rounded-xl text-[10px] sm:text-xs uppercase tracking-widest transition-colors flex items-center justify-center gap-2 shadow-lg shadow-blue-900/20"
+            >
+              <Award className="w-4 h-4" /> Send to Get Graded (VCA)
+            </button>
+          </div>
 
           <button 
             onClick={onClose}
-            className="flex-1 sm:col-span-2 bg-primary hover:bg-primary-hover text-black font-bold px-4 py-3 rounded-xl text-[10px] sm:text-xs uppercase tracking-widest transition-colors shadow-lg shadow-primary/20"
+            className="w-full bg-primary hover:bg-primary-hover text-black font-bold p-3 rounded-xl text-[10px] sm:text-xs uppercase tracking-widest transition-colors shadow-lg shadow-primary/20"
           >
             Close Dashboard
           </button>
         </div>
+
+        <ConfirmDialog
+          isOpen={showDeleteConfirm}
+          title="Remove Card from Vault"
+          message={`Are you sure you want to remove "${card.name}" from your collection? This action cannot be undone.`}
+          confirmText="Delete"
+          cancelText="Cancel"
+          isDestructive={true}
+          onConfirm={handleConfirmDelete}
+          onCancel={() => setShowDeleteConfirm(false)}
+        />
       </motion.div>
     </div>
   );
